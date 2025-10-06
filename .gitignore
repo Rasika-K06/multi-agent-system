@@ -1,0 +1,17 @@
+/.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+logs/*.json
+.env
+.env.*
+.DS_Store
+.cache/
+.hf_cache/
+.sample_cache/
+backend/vectorstore/*.index
+backend/vectorstore/*.pkl
+sample_pdfs/*.pdf
+uploads/
