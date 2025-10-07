@@ -1,6 +1,14 @@
-# Multi-Agentic System with Dynamic Decision Making
+---
+title: Multi-Agent System
+emoji: 🤖
+colorFrom: indigo
+colorTo: purple
+sdk: docker
+pinned: false
+---
+# Multi-Agent System
 
-**Built for Solar Industries India Limited AIML Assessment**
+**Built for Solar Industries India Limited AIML Internship Assessment**
 
 A FastAPI project that routes user queries to specialized agents (PDF RAG, Web Search, ArXiv) using a hybrid Controller Agent powered by Google Gemini AI.
 
@@ -25,7 +33,7 @@ A FastAPI project that routes user queries to specialized agents (PDF RAG, Web S
 
 Demo (Hugging Face Spaces)
 
-- Placeholder: https://huggingface.co/spaces/your-username/problem-2-multi-agentic
+- Placeholder: https://huggingface.co/spaces/your-username/multi-agent-system
 
 Features and Requirements
 

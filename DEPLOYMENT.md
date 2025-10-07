@@ -19,8 +19,8 @@ This guide explains how to run this project locally or deploy it to a cloud plat
 
 ### Step 1: Clone the Repository
 ```bash
-git clone https://github.com/YOUR_USERNAME/problem-2-multi-agentic.git
-cd problem-2-multi-agentic
+git clone https://github.com/YOUR_USERNAME/multi-agent-system.git
+cd multi-agent-system
 ```
 
 ### Step 2: Create Virtual Environment
@@ -107,7 +107,7 @@ Hugging Face Spaces provides free hosting for ML/AI demos.
 ### Step 2: Create a New Space
 1. Go to: https://huggingface.co/new-space
 2. Configure:
-   - **Space name**: `problem-2-multi-agentic` (or any name)
+   - **Space name**: `multi-agent-system` (or any name)
    - **License**: Apache 2.0
    - **Space SDK**: **Docker**
    - **Docker template**: **Blank/From Scratch**
@@ -116,7 +116,7 @@ Hugging Face Spaces provides free hosting for ML/AI demos.
 ### Step 3: Push Your Code
 ```bash
 # Add HF remote (replace YOUR_USERNAME with your HF username)
-git remote add hf https://huggingface.co/spaces/YOUR_USERNAME/problem-2-multi-agentic
+git remote add hf https://huggingface.co/spaces/YOUR_USERNAME/multi-agent-system
 
 # Push to Hugging Face
 git push hf main
@@ -132,7 +132,7 @@ git push hf main
 ### Step 5: Wait for Build
 - Hugging Face will automatically build your Docker image (~5-10 min)
 - Once done, your app will be live at:
-  `https://huggingface.co/spaces/YOUR_USERNAME/problem-2-multi-agentic`
+  `https://huggingface.co/spaces/YOUR_USERNAME/multi-agent-system`
 
 ---
 
@@ -146,7 +146,7 @@ git push hf main
 1. Dashboard → **New** → **Web Service**
 2. Connect your GitHub repository
 3. Configure:
-   - **Name**: `problem-2-multi-agentic`
+   - **Name**: `multi-agent-system`
    - **Environment**: Docker
    - **Branch**: main
    - **Plan**: Free (or paid for production)
