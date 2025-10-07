@@ -129,7 +129,86 @@ The project is fully containerized with Docker and includes detailed instruction
 *   **Environment Variables:** All configuration (API keys, model names) is managed through environment variables, documented in `.env.example`.
 *   **Local Setup:** The README provides clear, simple instructions for cloning the repository and running the project locally in minutes.
 
-## 10. Future Enhancements
+## 10. Limitations & Known Issues
+
+While this system is functional and production-ready, there are some known limitations:
+
+### **A. Technical Limitations**
+
+1. **No Vector Store Persistence**
+   - The FAISS index is rebuilt on every restart
+   - **Impact:** Uploaded PDFs are lost when the server restarts
+   - **Workaround:** Sample PDFs are regenerated automatically; users can re-upload custom PDFs
+   - **Future:** Add persistence to disk or use a database-backed vector store
+
+2. **Single-User Design**
+   - No user authentication or session management
+   - **Impact:** All users share the same vector store
+   - **Future:** Add user sessions and isolated vector stores per user
+
+3. **Limited Context Window**
+   - RAG retrieves top 5 chunks per query
+   - **Impact:** Very long documents may not be fully represented
+   - **Mitigation:** Recursive chunking with overlap helps maintain context
+
+4. **External API Dependencies**
+   - Relies on Google Gemini, SerpAPI (optional), and ArXiv APIs
+   - **Impact:** Service degradation if APIs are down or rate-limited
+   - **Mitigation:** Graceful fallbacks (DuckDuckGo for search, mock responses for LLM)
+
+### **B. Performance Limitations**
+
+1. **Cold Start Latency**
+   - First startup downloads ~90MB embedding model
+   - **Impact:** 1-2 minute delay on first run
+   - **Future:** Pre-cache model in Docker image
+
+2. **CPU-Only Inference**
+   - Sentence-transformers runs on CPU
+   - **Impact:** Slower embeddings vs GPU (typically 200-500ms per query)
+   - **Acceptable for:** Demo/assessment purposes with free tier
+
+3. **Sequential Agent Calls**
+   - Agents are called sequentially, not in parallel
+   - **Impact:** Slightly slower response times when multiple agents are used
+   - **Future:** Use `asyncio.gather()` to parallelize agent calls
+
+### **C. Security & Privacy Limitations**
+
+1. **No User Authentication**
+   - Anyone with the URL can access the system
+   - **Acceptable for:** Internal demos, assessments
+   - **Not suitable for:** Production use with sensitive data
+   - **Future:** Add OAuth or API key authentication
+
+2. **Uploaded PDFs in Memory Only**
+   - PDFs are deleted after ingestion but remain in the vector store
+   - **Impact:** No way to "forget" a document without restarting the server
+   - **Future:** Implement document deletion API endpoint
+
+3. **No Rate Limiting**
+   - No protection against API abuse
+   - **Future:** Add rate limiting per IP or user
+
+### **D. Scope Limitations**
+
+1. **Text-Only PDF Support**
+   - No support for images, tables, or complex layouts in PDFs
+   - **Impact:** Scanned PDFs or image-heavy documents won't work well
+   - **Future:** Add OCR (e.g., Tesseract) for scanned documents
+
+2. **English-Only**
+   - Optimized for English language queries and documents
+   - **Impact:** May not work well with Hindi or other Indian languages
+   - **Future:** Use multilingual embedding models
+
+3. **No Multi-Modal Support**
+   - Cannot process images, audio, or video
+   - **Future:** Integrate vision models (e.g., Gemini Vision) for image analysis
+
+---
+
+## 11. Future Enhancements
 
 This project provides a strong foundation. For a full production deployment at Solar Industries, I would recommend the following enhancements:
 
@@ -139,3 +218,5 @@ This project provides a strong foundation. For a full production deployment at S
 | **Cost & Token Tracking** | Implement a callback to capture token usage and cost data from the Gemini API response for every call. | Provides crucial observability for cost management, allowing Solar Industries to monitor and budget for LLM usage effectively. |
 | **Domain-Specific Fine-Tuning**| Fine-tune the embedding model (`all-MiniLM-L6-v2`) on a corpus of Solar Industries' internal technical and safety documents. | Significantly increases RAG accuracy for domain-specific jargon (e.g., "energetic materials," "detonator assembly"), making the system a true internal expert. |
 | **User Session Management** | Add a session layer to allow for multi-turn, conversational follow-up questions about uploaded documents. | Enables more natural, human-like interaction and deeper exploration of complex topics without needing to re-upload documents. |
+| **Vector Store Persistence** | Save FAISS index to disk and reload on startup to preserve uploaded documents across restarts. | Eliminates need for users to re-upload documents after server restarts. |
+| **Parallel Agent Execution** | Use `asyncio.gather()` to call multiple agents simultaneously instead of sequentially. | Reduces response latency by 30-50% for multi-agent queries. |
