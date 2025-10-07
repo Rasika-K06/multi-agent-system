@@ -1,0 +1,1 @@
+This directory holds generated sample PDFs (created on first startup). PDF files are .gitignored.

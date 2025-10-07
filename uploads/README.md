@@ -1,0 +1,1 @@
+Temporary upload location for user PDFs. Files are deleted after ingestion and are .gitignored.

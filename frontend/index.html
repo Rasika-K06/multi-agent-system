@@ -3,37 +3,29 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Problem 2 — Multi-Agentic System</title>
+  <title>Multi-Agentic System</title>
   <link rel="stylesheet" href="/static/styles.css" />
 </head>
 <body>
   <div class="container">
-    <h1>Problem 2 — Multi-Agentic System</h1>
-    <section class="panel">
-      <h2>Ask a question</h2>
-      <div class="row">
-        <input id="query" type="text" placeholder="Ask about recent papers, latest news, or summarize uploaded PDF..." />
-        <button id="askBtn">Ask</button>
-      </div>
-      <div id="askStatus" class="status"></div>
-    </section>
+    <h1>Multi-Agentic System</h1>
 
-    <section class="panel">
-      <h2>Upload a PDF (max 10MB)</h2>
-      <div class="row">
-        <input id="pdf" type="file" accept="application/pdf" />
-        <button id="uploadBtn">Upload</button>
-      </div>
-      <div id="uploadStatus" class="status"></div>
-    </section>
+    <div class="input-row">
+      <input id="query" type="text" placeholder="Ask a question..." />
+      <button id="askBtn">Ask</button>
+    </div>
+    <div id="askStatus" class="status"></div>
 
-    <section class="panel">
-      <h2>Result</h2>
-      <div id="result">
-        <div id="answer"></div>
-        <div id="meta"></div>
-      </div>
-    </section>
+    <div class="input-row">
+      <input id="pdf" type="file" accept="application/pdf" />
+      <button id="uploadBtn">Upload PDF</button>
+    </div>
+    <div id="uploadStatus" class="status"></div>
+
+    <div id="result">
+      <div id="answer"></div>
+      <div id="meta"></div>
+    </div>
   </div>
   <script src="/static/main.js"></script>
 </body>

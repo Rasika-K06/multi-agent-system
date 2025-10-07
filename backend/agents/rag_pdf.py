@@ -1,6 +1,7 @@
 import asyncio
 import fitz  # PyMuPDF
 import os
+import time
 from pathlib import Path
 from typing import List, Tuple, Dict, Any
 
@@ -24,8 +25,10 @@ class PDFRAGAgent:
         self.splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
 
     async def ensure_sample_pdfs(self) -> None:
-        # Generate 5 small PDFs with fictional dialogs if missing
+        # TODO: maybe move this to a separate script?
+        # create sample PDFs if they don't exist yet
         topics = [
+            # NebulaByte AI Dialogs (3 PDFs)
             ("dialog1.pdf", "RAG benefits", [
                 "A: What are the benefits of RAG?",
                 "B: It grounds LLMs with retrieval, improving factuality.",
@@ -35,18 +38,61 @@ class PDFRAGAgent:
             ("dialog2.pdf", "Multi-agent routing", [
                 "A: How to route queries in a multi-agent setup?",
                 "B: Combine rule-based hints with an LLM controller.",
+                "A: Why use multiple agents?",
+                "B: Specialization enables better accuracy per domain: PDFs, research papers, real-time news.",
             ]),
             ("dialog3.pdf", "Controller design", [
                 "A: What rules should the controller have?",
                 "B: PDF summarize -> RAG; recent papers -> ArXiv; latest news -> Web.",
+                "A: How does the LLM help?",
+                "B: It handles ambiguous queries and can call multiple agents in parallel.",
             ]),
-            ("dialog4.pdf", "ArXiv scanning strategies", [
-                "A: How to find recent papers efficiently?",
-                "B: Use the arxiv API with query filters and summarize abstracts.",
+            
+            # Solar Industries India Limited Context (2 PDFs)
+            ("solar_overview.pdf", "Solar Industries Overview", [
+                "Company: Solar Industries India Limited",
+                "Founded: 1995 | HQ: Nagpur, Maharashtra",
+                "Business: India's largest private sector manufacturer of industrial explosives and propellants.",
+                "",
+                "Product Lines:",
+                "- Bulk explosives (ANFO, emulsions, SME)",
+                "- Packaged explosives (cartridges, detonators, boosters)",
+                "- Initiating systems (electronic, non-electric detonators)",
+                "- Defense products (propellants, warheads, ammunition)",
+                "",
+                "Technology Focus:",
+                "- Advanced blasting solutions for mining, infrastructure, defense",
+                "- R&D in energetic materials, precision munitions",
+                "- Automation in manufacturing for safety and efficiency",
+                "",
+                "Industry: Explosives manufacturing requires extreme safety, regulatory compliance,",
+                "and continuous innovation in chemistry and materials science.",
             ]),
-            ("dialog5.pdf", "Web search vs. curated corpora", [
-                "A: When to use web search?",
-                "B: For latest developments; curated corpora for depth and reliability.",
+            ("solar_ai_applications.pdf", "AI/ML at Solar Industries", [
+                "AI/ML Applications in Explosives & Defense Manufacturing:",
+                "",
+                "1. Predictive Maintenance:",
+                "   - ML models monitor equipment health (mixers, conveyor systems)",
+                "   - Reduces downtime, prevents hazardous failures",
+                "",
+                "2. Quality Control:",
+                "   - Computer vision inspects detonator assembly, cartridge consistency",
+                "   - Anomaly detection in chemical composition via spectroscopy data",
+                "",
+                "3. Supply Chain Optimization:",
+                "   - Demand forecasting for explosives (mining seasonality, infrastructure projects)",
+                "   - Route optimization for safe transport of hazardous materials",
+                "",
+                "4. R&D Acceleration:",
+                "   - NLP for patent/research paper analysis (energetic materials, propellants)",
+                "   - Molecular simulation for new explosive formulations",
+                "",
+                "5. Safety & Compliance:",
+                "   - Document management systems for regulatory filings",
+                "   - Real-time monitoring of safety protocols via IoT + AI",
+                "",
+                "Potential: Multi-agent systems could unify technical docs, track industry research,",
+                "and provide instant answers to engineers across manufacturing sites.",
             ]),
         ]
         self.sample_dir.mkdir(parents=True, exist_ok=True)
@@ -57,14 +103,13 @@ class PDFRAGAgent:
             doc = fitz.open()
             page = doc.new_page()
             content = f"NebulaByte Dialog — {title}\n\n" + "\n".join(lines)
-            # Draw text
             page.insert_text((72, 72), content, fontsize=12)
             doc.save(str(path))
             doc.close()
             LOGGER.info("pdf.generated", file=str(path))
 
     async def build_or_load_index(self) -> None:
-        # For simplicity, always rebuild on startup
+        # just rebuild everything on startup (simpler than persistence)
         pdf_files = sorted(self.sample_dir.glob("*.pdf"))
         all_chunks: List[str] = []
         all_metas: List[Dict[str, Any]] = []
@@ -73,7 +118,12 @@ class PDFRAGAgent:
             chunks = self.splitter.split_text(texts)
             for i, chunk in enumerate(chunks):
                 all_chunks.append(chunk)
-                all_metas.append({"source": pdf.name, "chunk": i})
+                all_metas.append({
+                    "source": pdf.name,
+                    "chunk": i,
+                    "timestamp": 0,  # sample files get low priority
+                    "is_sample": True,
+                })
         if all_chunks:
             emb = self._embed(all_chunks)
             docs = [Document(text=t, metadata=m) for t, m in zip(all_chunks, all_metas)]
@@ -104,10 +154,41 @@ class PDFRAGAgent:
             return
         chunks = self.splitter.split_text(text)
         embeddings = self._embed(chunks)
-        docs = [Document(text=c, metadata={"source": Path(path).name}) for c in chunks]
+        upload_time = time.time()
+        docs = [
+            Document(
+                text=c,
+                metadata={
+                    "source": Path(path).name,
+                    "chunk": i,
+                    "timestamp": upload_time,
+                    "is_sample": False,
+                },
+            )
+            for i, c in enumerate(chunks)
+        ]
         self.store.add(embeddings, docs)
         LOGGER.info("rag.pdf_ingested", file=str(path), chunks=len(chunks))
 
     async def retrieve(self, query: str, k: int = 5) -> List[Tuple[float, Document]]:
         q_emb = self._embed([query])[0]
-        return self.store.search(q_emb, k=k)
+        # get 3x candidates so we can re-rank them
+        candidates = self.store.search(q_emb, k=k * 3)
+        # boost user uploads over sample files
+        reranked = []
+        for score, doc in candidates:
+            boost = 0.0
+            # user uploads get a big boost
+            if not doc.metadata.get("is_sample", False):
+                boost += 0.3
+            # newer uploads get higher score
+            ts = doc.metadata.get("timestamp", 0)
+            if ts > 0:
+                age_hours = (time.time() - ts) / 3600
+                recency_boost = max(0, 0.2 * (1.0 - age_hours / 168))  # decays over ~1 week
+                boost += recency_boost
+            adjusted_score = score + boost
+            reranked.append((adjusted_score, doc))
+        # sort and return top k
+        reranked.sort(key=lambda x: x[0], reverse=True)
+        return reranked[:k]

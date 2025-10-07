@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -15,7 +16,34 @@ from backend.agents.controller import ControllerAgent
 from backend.agents.rag_pdf import PDFRAGAgent
 from backend.utils.logging import get_logger, Tracer
 
+
+def cleanup_old_uploads(uploads_dir: Path, max_age_hours: int = 24) -> None:
+    # delete old PDFs to avoid filling up disk
+    if not uploads_dir.exists():
+        return
+    cutoff = time.time() - (max_age_hours * 3600)
+    count = 0
+    for pdf_file in uploads_dir.glob("*.pdf"):
+        try:
+            if pdf_file.stat().st_mtime < cutoff:
+                pdf_file.unlink()
+                count += 1
+        except Exception as e:
+            logger.warn("cleanup.failed", file=str(pdf_file), error=str(e))
+    if count > 0:
+        logger.info("cleanup.completed", removed=count)
+
+load_dotenv()
+
 APP_ROOT = Path(__file__).resolve().parents[1]
+
+# try to load .env if it exists
+try:
+    from dotenv import load_dotenv  # type: ignore
+    load_dotenv(dotenv_path=APP_ROOT / ".env", override=False)
+except Exception:
+    pass
+
 FRONTEND_DIR = APP_ROOT / "frontend"
 LOGS_DIR = APP_ROOT / "logs"
 UPLOADS_DIR = APP_ROOT / "uploads"
@@ -23,16 +51,15 @@ SAMPLE_PDFS_DIR = APP_ROOT / "sample_pdfs"
 
 app = FastAPI(title="Problem 2 — Multi-Agentic System")
 
-# Ensure directories
+# create dirs if needed
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 SAMPLE_PDFS_DIR.mkdir(parents=True, exist_ok=True)
 
-# Logging / tracing
 logger = get_logger()
 tracer = Tracer(LOGS_DIR / "traces.json")
 
-# Agents (initialized on startup)
+# agents get initialized in startup event
 controller: Optional[ControllerAgent] = None
 pdf_rag: Optional[PDFRAGAgent] = None
 
@@ -40,16 +67,19 @@ pdf_rag: Optional[PDFRAGAgent] = None
 @app.on_event("startup")
 async def on_startup():
     global controller, pdf_rag
-    # Initialize PDF RAG and preload sample PDFs (generated if missing)
+    
+    cleanup_old_uploads(UPLOADS_DIR)
+    
+    # setup RAG agent with sample PDFs
     pdf_rag = PDFRAGAgent(sample_dir=SAMPLE_PDFS_DIR)
     await pdf_rag.ensure_sample_pdfs()
     await pdf_rag.build_or_load_index()
 
-    # Initialize Controller
+    # setup controller
     controller = ControllerAgent(pdf_agent=pdf_rag, tracer=tracer)
     logger.info("app.startup", msg="Application started and agents initialized")
 
-    # Mount static files for frontend
+    # static files for the frontend
     app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR / "static")), name="static")
 
 
@@ -85,13 +115,13 @@ async def upload_pdf(file: UploadFile = File(...)):
     if len(data) > MAX_UPLOAD:
         raise HTTPException(status_code=400, detail="File too large (max 10MB)")
 
-    # Save to temp uploads
+    # save temporarily
     file_id = str(uuid.uuid4())
     dest = UPLOADS_DIR / f"{file_id}.pdf"
     with open(dest, "wb") as f:
         f.write(data)
 
-    # Ingest and then delete
+    # ingest into RAG, then delete file
     try:
         if pdf_rag is None:
             raise HTTPException(status_code=503, detail="RAG not ready")

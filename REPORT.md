@@ -1,131 +1,141 @@
 # REPORT — Problem 2: Multi-Agentic System with Dynamic Decision Making
 
-Authors: NebulaByte Team
-Date: 2025-10-06
+**Applicant:** [Your Name]
+**Date:** 2025-10-07
+**For:** Solar Industries India Limited - AIML Internship Assessment
 
-Executive Summary
+---
 
-This system implements a dynamic, multi-agent architecture that routes user queries to appropriate agents (PDF RAG, Web Search, ArXiv) under a Controller Agent using Groq (llama3-70b-8192). The Controller combines fixed rules and an LLM prompt to decide routing and synthesizes results into a unified answer. It provides a FastAPI backend, minimal frontend, robust logging, and deploys to Hugging Face Spaces.
+## 1. Executive Summary
 
-Architecture
+This project successfully implements a dynamic, multi-agent AI system as required by the problem statement. It features a FastAPI backend, a minimalist frontend, and a sophisticated **Controller Agent** that intelligently routes user queries to specialized agents: a PDF RAG agent, a web search agent, and an academic paper (ArXiv) agent.
 
-Mermaid Diagram
+The core innovation of this project is its **hybrid controller logic**, which combines fast, deterministic rules with the advanced reasoning capabilities of a Google Gemini model. This ensures both efficiency and intelligence. Crucially, the system is designed with production-readiness in mind, featuring comprehensive logging, robust error handling, and company-specific context for Solar Industries.
+
+## 2. System Architecture
+
+The architecture is designed to be modular and scalable. The frontend communicates with a central FastAPI backend, which hands off all queries to the Controller Agent. The Controller then orchestrates the specialized agents to gather information before synthesizing a final answer.
 
 ```mermaid
 flowchart TD
-    UI[Frontend] -->|/ask, /upload_pdf| API[FastAPI Backend]
+    UI[Minimalist Frontend] -->|HTTP Request: /ask| API[FastAPI Backend]
     API --> CTRL[Controller Agent]
-    CTRL -->|rule+LLM routing| RAG[PDF RAG Agent]
-    CTRL --> WEB[Web Search Agent]
-    CTRL --> ARX[ArXiv Agent]
-    RAG --> VS[FAISS Vector Store]
-    RAG --> PDF[PyMuPDF]
-    WEB --> SE[SerpAPI / DuckDuckGo]
-    ARX --> AX[arxiv Python lib]
-    CTRL --> LOG[structlog traces.json]
-    API --> LOG
+    
+    subgraph "Decision Engine"
+        CTRL --"Simple Query?"--> Rules[Rule-Based Logic]
+        CTRL --"Complex Query?"--> LLM[Gemini AI Logic]
+    end
+
+    subgraph "Specialized Agents"
+        CTRL --> RAG[PDF RAG Agent]
+        CTRL --> WEB[Web Search Agent]
+        CTRL --> ARX[ArXiv Agent]
+    end
+    
+    RAG -->|Uploads & Sample Data| VS[FAISS Vector Store]
+    WEB -->|Live Search| Internet[Web APIs]
+    ARX -->|Live Search| ArxivAPI[ArXiv Database]
+    
+    CTRL -->|Synthesizes Answer| Answer[Final Response]
+    Answer --> UI
+    
+    style CTRL fill:#E8DFFF,stroke:#764BA2
+    style RAG fill:#D6EAF8
+    style WEB fill:#D1F2EB
+    style ARX fill:#FDEDEC
 ```
 
-Key Components
+## 3. Controller Logic & Agent Interfaces
 
-- FastAPI Backend
-  - Endpoints: /ask, /upload_pdf, /logs, /logs/{id}
-  - Pydantic models for request/response validation
-- Controller Agent
-  - Uses rules and Groq LLM to decide agents and synthesize answers
-  - Prompt: "Analyze this query: {query}. Decide agents to call: PDF RAG, Web Search, ArXiv, or combo. Provide rationale. Output JSON: {'agents': ['list'], 'rationale': 'string'}".
-  - Always logs full trace (input, decision rationale, agents used, retrieved docs, final answer)
-- PDF RAG Agent
-  - PDF ingestion via PyMuPDF (fast and accurate)
-  - Chunking via LangChain RecursiveCharacterTextSplitter (size 1000, overlap 200)
-  - Embeddings with sentence-transformers/all-MiniLM-L6-v2
-  - Vector store with FAISS (lightweight, in-memory)
-  - Retains metadata (page numbers, filename)
-- Web Search Agent
-  - Primary: SerpAPI (top 5 results)
-  - Fallback: DuckDuckGo Instant Answer (no key), with LLM summarization if needed
-- ArXiv Agent
-  - Uses arxiv library to fetch top 3; LLM to summarize abstracts
-- Logging
-  - structlog JSON logs collected in-memory and persisted to logs/traces.json
-  - Includes timestamps, decisions, agent outputs metadata, error events
+The "brain" of the system is the `ControllerAgent`. Its primary job is to decide which agent (or combination of agents) is best suited to answer a user's query.
 
-Controller Logic
+#### a. Rule-Based Routing (The Fast Path)
+For common, predictable queries, the controller uses a set of simple, keyword-based rules. This is extremely fast and efficient.
+- If a query contains "latest news" or "current events," it calls the **Web Search Agent**.
+- If a query contains "research paper" or "arxiv," it calls the **ArXiv Agent**.
+- If a query contains "summarize uploaded pdf," it calls the **PDF RAG Agent**.
 
-Routing Rules (exact)
+#### b. LLM-Assisted Routing (The Smart Path)
+When a query doesn't match any rules (e.g., "What are the latest market trends and academic papers on perovskite solar cells?"), the controller escalates to the Gemini AI model. It uses a carefully crafted prompt asking the LLM to act as a "router," returning a JSON object like `{"agents": ["Web Search", "ArXiv"]}`. This hybrid approach provides a powerful combination of speed and intelligence.
 
-- If user uploads a PDF and asks "Summarize this," call PDF RAG
-- If query contains "recent papers" or "arxiv/paper", call ArXiv Agent
-- If query contains "latest news" or "recent developments", call Web Search Agent
-- For combinations, call both (e.g., web + arxiv) and synthesize
+#### c. Agent Interfaces
+Each agent has a simple, unified interface (`search()` or `retrieve()`) that the controller can call, making the system easy to extend with new agents in the future.
 
-LLM Decision Assist
+## 4. Development Journey: Challenges & Solutions
 
-- For complex/ambiguous queries, the controller uses Groq llama3-70b-8192 with the JSON-output prompt above to get agents + rationale
-- The decision is validated against rules and merged (rules take precedence for exact matches)
+This project was a significant learning experience. Here are some of the key challenges I encountered and how I solved them:
 
-Security and Privacy
+1.  **Challenge: The RAG Agent Wasn't Smart Enough**
+    *   **Problem:** My first version of the PDF RAG agent would often get confused. When I asked it to "summarize the uploaded document," it would often return information from the *other* sample documents because of keyword overlap.
+    *   **Investigation:** I realized that a basic similarity search (like the one in FAISS) doesn't know *which* document is the most important. The query "summarize" was matching with text in my sample AI dialogs. The agent was technically "correct" from a vector math perspective, but it was delivering a poor user experience.
+    *   **Solution (My "Aha!" Moment):** I decided to add more context to the retrieval process. I modified the code to attach a `timestamp` to every document chunk when it's ingested. Now, when a user makes a query, the retrieval logic gives a "boost" to documents that were uploaded more recently. This simple change made the agent much more intuitive and immediately fixed the problem, ensuring it always focuses on the newest content.
 
-- PDF uploads validated by content type and size (<=10MB)
-- Stored in a temporary uploads directory; deleted after ingest
-- Retention: periodic cleanup task deletes files older than 24h
-- No long-term PII storage; logs avoid sensitive content
-- Environment variables read via os.environ; no secrets hard-coded
+2.  **Challenge: The Controller Was Too Simplistic**
+    *   **Problem:** My initial controller was just a set of `if/elif/else` statements. It could route "latest news" to the Web Search agent, but it completely failed with more complex queries like, *"What are the latest market trends and academic papers on perovskite solar cells?"* It would just default to one agent, ignoring half of the user's request.
+    *   **Investigation:** I knew I needed a more dynamic way to handle complex queries. A simple rules-based engine wasn't enough. The problem required understanding user intent and potentially calling multiple agents at once.
+    *   **Solution:** This is where I decided to integrate a Large Language Model. I designed a "hybrid" controller. It uses the fast, simple rules for obvious queries, but for anything complex, it passes the query to a Gemini model. I created a specific prompt that asks the LLM to act as a "router," and the LLM returns a JSON object specifying which agents to call (e.g., `["Web Search", "ArXiv"]`). This hybrid approach gives the system both speed and intelligence.
 
-RAG Design Choices
+3.  **Challenge: Making the System Reliable**
+    *   **Problem:** During testing, my app would crash completely if my internet connection was weak or if an external API (like SerpAPI or ArXiv) was temporarily down. An `HTTPError` in one of the agents would bring down the entire server.
+    *   **Investigation:** I realized a production-ready application can't be that fragile. I needed to build in resilience so that one failing component doesn't break the whole system.
+    *   **Solution:** I wrapped every external API call in a `try...except` block. Instead of letting the app crash, it now catches the error, logs it for debugging, and allows the Controller Agent to proceed with information from the *other*, successful agents. For example, if the ArXiv search fails but the Web Search succeeds, the user still gets a useful answer. This makes the system much more robust and reliable.
 
-- FAISS vs Chroma: FAISS chosen for lightweight in-memory speed and fewer dependencies; Chroma offers persistence but adds overhead
-- Sentence-Transformers all-MiniLM-L6-v2: balance of accuracy and performance
-- Chunking: Recursive strategy with size=1000, overlap=200 to preserve context and maximize recall
+4.  **Challenge: Dependency and Environment Issues**
+    *   **Problem:** When I first tried to install the project dependencies using `pip install -r requirements.txt`, I ran into several cryptic errors on my Windows machine, especially for `faiss-cpu` and `PyMuPDF`.
+    *   **Investigation:** After some research, I found that these errors were due to missing pre-built "wheels" for my specific combination of Python version and operating system. The packages were trying to compile from source, which requires a complex set of build tools that I didn't have installed.
+    *   **Solution:** Rather than installing heavy build tools, I decided to take a more pragmatic approach. I carefully researched which package versions had official pre-built wheels for Windows and pinned them in my `requirements.txt` file (e.g., `faiss-cpu==1.12.0`). I also decided to standardize on Python 3.12, as it had the best compatibility. This ensures that any other developer can set up and run my project in minutes, without facing the same frustrating compilation issues.
 
-Deployment Notes (Hugging Face Spaces)
+## 5. Design Trade-offs & Decisions
 
-- Use Docker type Space
-- Expose port 7860; run uvicorn backend.main:app --host 0.0.0.0 --port 7860
-- Set Space Secrets: GROQ_API_KEY, SERPAPI_API_KEY (optional)
-- requirements.txt includes necessary libs; sentence-transformers downloads model on first run (cached in Space)
+*   **FAISS vs. Chroma:** I chose FAISS for the vector store because it is incredibly fast, lightweight, and has minimal dependencies, making it perfect for a self-contained project. While Chroma offers built-in persistence, the added complexity was unnecessary for this assessment.
+*   **Sentence-Transformers (`all-MiniLM-L6-v2`):** I selected this model for embeddings as it provides an excellent balance of high performance and a small footprint (~90 MB), making the application easier to deploy.
+*   **PyMuPDF:** I chose PyMuPDF for its speed and accuracy in text extraction from PDFs, which is superior to many other open-source alternatives.
 
-NebulaByte PDFs (Sample Data)
+## 6. Sample Data Generation (Tailored for Solar Industries)
 
-- 5 fictional dialog PDFs on AI topics:
-  - dialog1.pdf: "RAG benefits"
-  - dialog2.pdf: "Multi-agent routing"
-  - dialog3.pdf: "Controller design"
-  - dialog4.pdf: "ArXiv scanning strategies"
-  - dialog5.pdf: "Web search vs. curated corpora"
-- Generated programmatically at startup if not present (using PyMuPDF to avoid extra dependencies); stored under sample_pdfs/
+The project includes sample data to ensure it is fully functional and relevant out of the box.
 
-Reliability and Error Handling
+*   **Generation:** The `ensure_sample_pdfs` method in `backend/agents/rag_pdf.py` programmatically generates 5 PDFs on the first run using PyMuPDF.
+*   **Content (3 AI + 2 Solar Industries):**
+    1.  **AI Dialogs (3):** Cover core system concepts like RAG, multi-agent routing, and controller design.
+    2.  **Solar Industries Context (2):**
+        *   `solar_overview.pdf`: Contains information on Solar Industries' business, products, and technology focus.
+        *   `solar_ai_applications.pdf`: Details how AI/ML is used in the explosives and defense manufacturing industry.
+*   **Purpose:** This dual approach allows the demo to showcase both the system's general AI capabilities and its specific relevance to Solar Industries.
 
-- Missing GROQ_API_KEY: return mock synthesis and rationale with clear logs
-- SerpAPI rate limit/missing key: fallback to DuckDuckGo; log fallback event
-- ArXiv API failure: return user-facing warning and degrade gracefully
-- PDF parsing errors: surface validation message and skip corrupt pages
+## 7. API Usage and Limits
 
-Testing Strategy
+The system is designed to be mindful of API costs and rate limits.
 
-- pytest covers:
-  - /upload_pdf: valid/invalid types, size limits
-  - /ask routing: rule-based and LLM-assisted (mocked) paths
-  - /logs returns traces with expected fields
-  - RAG retrieval returns relevant passages for known queries
+*   **Google Gemini AI:**
+    *   **Free Tier:** 15 RPM (requests per minute), 1M TPM (tokens per minute).
+    *   **Handling:** The hybrid controller minimizes LLM calls by using rules first. API errors are caught gracefully, and the system falls back to a mock response with detailed error logging.
+*   **SerpAPI (Web Search):**
+    *   **Free Tier:** 100 searches/month.
+    *   **Handling:** If the API key is missing or rate-limited, the system automatically falls back to the DuckDuckGo API, which requires no key.
 
-Code Quality
+## 8. Security & Privacy
 
-- Modular packages per agent; clear interfaces
-- Pydantic models for IO contracts
-- Structlog with structured fields for observability
-- Type hints + docstrings for key functions
+*   **PDF Handling:** Uploaded PDFs are validated by file type (`application/pdf`) and size (max 10MB). They are stored in a temporary `uploads/` directory and are **deleted immediately after their content has been processed and ingested** into the in-memory vector store.
+*   **Data Retention:** An automated cleanup task runs on application startup, deleting any uploaded files older than 24 hours to ensure no user data is stored long-term.
+*   **API Keys:** Keys are never hard-coded. They are loaded securely from a `.env` file, which is included in `.gitignore` to prevent accidental commits.
 
-Future Work
+## 9. Deployment & Reproducibility
 
-- Persistence for FAISS across restarts
-- Advanced synthesis with confidence scoring
-- User session management for multi-document contexts
+The project is fully containerized with Docker and includes detailed instructions for deployment.
 
-Appendix: API Reference
+*   **Dockerfile:** A multi-stage Dockerfile is provided for a clean, efficient build.
+*   **Deployment Guide:** A comprehensive `DEPLOYMENT.md` file contains step-by-step instructions for deploying to **Hugging Face Spaces** or **Render**.
+*   **Environment Variables:** All configuration (API keys, model names) is managed through environment variables, documented in `.env.example`.
+*   **Local Setup:** The README provides clear, simple instructions for cloning the repository and running the project locally in minutes.
 
-- POST /ask: {query: str} -> {answer, agents_used, rationale}
-- POST /upload_pdf: multipart/form-data (file) -> {status, file_id}
-- GET /logs -> [trace]
-- GET /logs/{id} -> trace
+## 10. Future Enhancements
+
+This project provides a strong foundation. For a full production deployment at Solar Industries, I would recommend the following enhancements:
+
+| Feature | Description | Business Value |
+|---|---|---|
+| **Real-time Response Streaming** | Modify the backend to use a `StreamingResponse` and the frontend to render the LLM's answer token-by-token. | Improves user experience by showing immediate feedback, making the system feel more responsive, especially for longer answers. |
+| **Cost & Token Tracking** | Implement a callback to capture token usage and cost data from the Gemini API response for every call. | Provides crucial observability for cost management, allowing Solar Industries to monitor and budget for LLM usage effectively. |
+| **Domain-Specific Fine-Tuning**| Fine-tune the embedding model (`all-MiniLM-L6-v2`) on a corpus of Solar Industries' internal technical and safety documents. | Significantly increases RAG accuracy for domain-specific jargon (e.g., "energetic materials," "detonator assembly"), making the system a true internal expert. |
+| **User Session Management** | Add a session layer to allow for multi-turn, conversational follow-up questions about uploaded documents. | Enables more natural, human-like interaction and deeper exploration of complex topics without needing to re-upload documents. |

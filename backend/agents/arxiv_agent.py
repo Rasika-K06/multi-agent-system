@@ -1,18 +1,25 @@
 import arxiv
 from typing import List, Dict, Any
 
-from backend.agents.groq_llm import groq_chat
+from backend.agents.gemini_llm import gemini_chat
 from backend.utils.logging import get_logger
 
 LOGGER = get_logger()
 
 
 class ArXivAgent:
+    def __init__(self):
+        self._client = arxiv.Client(
+            page_size=5,
+            delay_seconds=3,
+            num_retries=3
+        )
+
     async def search_and_summarize(self, query: str, max_results: int = 3) -> List[Dict[str, Any]]:
         results = []
         try:
             search = arxiv.Search(query=query, max_results=max_results, sort_by=arxiv.SortCriterion.SubmittedDate)
-            for res in search.results():
+            for res in self._client.results(search):
                 entry = {
                     "title": res.title,
                     "authors": [a.name for a in res.authors],
@@ -22,7 +29,7 @@ class ArXivAgent:
                 }
                 # Summarize abstract via LLM
                 prompt = f"Summarize the following paper abstract in 3-4 bullet points:\n\nTitle: {res.title}\n\nAbstract: {res.summary}"
-                summary = groq_chat([
+                summary = gemini_chat([
                     {"role": "system", "content": "You are a concise scientific assistant."},
                     {"role": "user", "content": prompt},
                 ], temperature=0.2, max_tokens=200)
