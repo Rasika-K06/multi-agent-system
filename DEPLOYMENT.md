@@ -1,189 +1,275 @@
 # Deployment Guide
 
-## Quick Deploy to Hugging Face Spaces
-
-### Prerequisites
-- GitHub/Hugging Face account
-- Google AI Studio API key (get from https://aistudio.google.com/app/apikey)
-- (Optional) SerpAPI key for web search
-
-### Step 1: Prepare Repository
-```bash
-# Initialize git if not already done
-git init
-git add .
-git commit -m "Initial commit"
-```
-
-### Step 2: Create Hugging Face Space
-1. Go to https://huggingface.co/spaces
-2. Click "Create new Space"
-3. Configure:
-   - **Name**: `problem-2-multi-agentic`
-   - **License**: Apache 2.0 (or your choice)
-   - **SDK**: Docker
-   - **Visibility**: Public or Private
-
-### Step 3: Link Repository
-```bash
-# Add HF remote (replace YOUR_USERNAME)
-git remote add hf https://huggingface.co/spaces/YOUR_USERNAME/problem-2-multi-agentic
-
-# Push to HF Spaces
-git push hf main
-```
-
-### Step 4: Configure Secrets
-In your Space settings (Settings → Repository secrets):
-
-1. **GOOGLE_API_KEY** (Required)
-   - Value: Your Google AI Studio API key
-   - Example: `AIzaSyC...`
-
-2. **GEMINI_MODEL** (Optional)
-   - Default: `gemini-2.5-flash`
-   - Options: `gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-flash-lite-latest`
-
-3. **SERPAPI_API_KEY** (Optional)
-   - If omitted, falls back to DuckDuckGo
-   - Get from: https://serpapi.com/
-
-### Step 5: Wait for Build
-- HF Spaces will automatically build your Docker container
-- Build time: ~5-10 minutes
-- Check logs in "Logs" tab if issues occur
-
-### Step 6: Access Your App
-- URL: `https://huggingface.co/spaces/YOUR_USERNAME/problem-2-multi-agentic`
-- The app will be running on port 7860 internally
-- HF provides a public URL automatically
+This guide explains how to run this project locally or deploy it to a cloud platform.
 
 ---
 
-## Alternative: Deploy to Render
+## Prerequisites
 
-### Step 1: Create Account
-- Sign up at https://render.com
+- **Python 3.10+** installed
+- **Google Gemini API Key** (required)
+  - Get one free at: https://aistudio.google.com/app/apikey
+- **SerpAPI Key** (optional, for web search)
+  - Get one at: https://serpapi.com/ (free tier: 100 searches/month)
+  - If omitted, system falls back to DuckDuckGo
+
+---
+
+## Option 1: Local Development (Recommended for Testing)
+
+### Step 1: Clone the Repository
+```bash
+git clone https://github.com/YOUR_USERNAME/problem-2-multi-agentic.git
+cd problem-2-multi-agentic
+```
+
+### Step 2: Create Virtual Environment
+
+**Windows (PowerShell):**
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+**macOS/Linux:**
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+### Step 3: Install Dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### Step 4: Configure Environment Variables
+
+1. Copy the example file:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Edit `.env` and add your API keys:
+   ```bash
+   GOOGLE_API_KEY=your_actual_google_ai_studio_key
+   GEMINI_MODEL=gemini-2.5-flash  # optional
+   SERPAPI_API_KEY=your_serpapi_key  # optional
+   ```
+
+### Step 5: Run the Application
+```bash
+uvicorn backend.main:app --host 0.0.0.0 --port 7860 --reload
+```
+
+### Step 6: Access the Application
+Open your browser and go to: **http://localhost:7860**
+
+- Try uploading a PDF and asking questions
+- Test web search: "Latest news on AI"
+- Test ArXiv: "Recent papers on transformers"
+- View logs at: http://localhost:7860/logs
+
+---
+
+## Option 2: Docker Deployment (Production-Ready)
+
+This method uses Docker to containerize the application, making it easy to deploy anywhere.
+
+### Step 1: Install Docker
+- Download from: https://www.docker.com/products/docker-desktop
+
+### Step 2: Build the Docker Image
+```bash
+docker build -t multi-agentic-system .
+```
+
+### Step 3: Run the Container
+```bash
+docker run -p 7860:7860 \
+  -e GOOGLE_API_KEY=your_actual_key \
+  -e GEMINI_MODEL=gemini-2.5-flash \
+  -e SERPAPI_API_KEY=your_serpapi_key \
+  multi-agentic-system
+```
+
+### Step 4: Access the Application
+Open: **http://localhost:7860**
+
+---
+
+## Option 3: Deploy to Hugging Face Spaces (Free Hosting)
+
+Hugging Face Spaces provides free hosting for ML/AI demos.
+
+### Step 1: Create a Hugging Face Account
+- Sign up at: https://huggingface.co/join
+
+### Step 2: Create a New Space
+1. Go to: https://huggingface.co/new-space
+2. Configure:
+   - **Space name**: `problem-2-multi-agentic` (or any name)
+   - **License**: Apache 2.0
+   - **Space SDK**: **Docker**
+   - **Docker template**: **Blank/From Scratch**
+   - **Visibility**: Public (or Private)
+
+### Step 3: Push Your Code
+```bash
+# Add HF remote (replace YOUR_USERNAME with your HF username)
+git remote add hf https://huggingface.co/spaces/YOUR_USERNAME/problem-2-multi-agentic
+
+# Push to Hugging Face
+git push hf main
+```
+
+### Step 4: Add API Keys as Secrets
+1. Go to your Space → **Settings** → **Repository secrets**
+2. Add these secrets:
+   - `GOOGLE_API_KEY`: Your Gemini API key
+   - `GEMINI_MODEL`: `gemini-2.5-flash` (optional)
+   - `SERPAPI_API_KEY`: Your SerpAPI key (optional)
+
+### Step 5: Wait for Build
+- Hugging Face will automatically build your Docker image (~5-10 min)
+- Once done, your app will be live at:
+  `https://huggingface.co/spaces/YOUR_USERNAME/problem-2-multi-agentic`
+
+---
+
+## Option 4: Deploy to Render (Alternative Cloud Platform)
+
+### Step 1: Create Render Account
+- Sign up at: https://render.com
 - Connect your GitHub account
 
 ### Step 2: Create Web Service
-1. Dashboard → "New" → "Web Service"
+1. Dashboard → **New** → **Web Service**
 2. Connect your GitHub repository
 3. Configure:
    - **Name**: `problem-2-multi-agentic`
    - **Environment**: Docker
    - **Branch**: main
-   - **Plan**: Free (or paid for better performance)
+   - **Plan**: Free (or paid for production)
 
-### Step 3: Environment Variables
-Add in the "Environment" tab:
+### Step 3: Add Environment Variables
+In the "Environment" tab, add:
 - `GOOGLE_API_KEY`: Your API key
-- `GEMINI_MODEL`: (optional) `gemini-2.5-flash`
-- `SERPAPI_API_KEY`: (optional)
+- `GEMINI_MODEL`: `gemini-2.5-flash` (optional)
+- `SERPAPI_API_KEY`: Your SerpAPI key (optional)
 
 ### Step 4: Deploy
-- Click "Create Web Service"
-- Render will auto-detect Dockerfile
-- Build time: ~5-10 minutes
-- Access via provided .onrender.com URL
-
----
-
-## Local Development
-
-### Setup
-```powershell
-# Create virtual environment
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Create .env file
-Copy-Item .env.example .env
-notepad .env  # Add your API keys
-```
-
-### Run
-```powershell
-uvicorn backend.main:app --host 0.0.0.0 --port 7860 --reload
-```
-
-Access at: http://localhost:7860
+- Click **Create Web Service**
+- Render auto-detects Dockerfile and deploys
+- Access via the provided `.onrender.com` URL
 
 ---
 
 ## Troubleshooting
 
-### Build fails on HF Spaces
-- Check "Logs" tab for errors
-- Common issue: Missing dependencies → verify requirements.txt
-- Docker build timeout → simplify dependencies or use smaller base image
+### Common Issues
 
-### "Mock LLM Response" appearing
-- Check Space Secrets are set correctly
-- Verify GOOGLE_API_KEY is valid
-- Check logs via GET /logs endpoint for error details
+**1. "Mock LLM Response" in output**
+- **Cause**: Invalid or missing `GOOGLE_API_KEY`
+- **Fix**: Verify your API key is correct and active
+- **Check logs**: Visit http://localhost:7860/logs for detailed error info
 
-### FAISS/Sentence-Transformers issues
-- On first run, downloads ~90MB model cache
-- HF Spaces: cached automatically after first build
-- Render: may need to increase disk space allocation
+**2. Module not found errors**
+- **Cause**: Dependencies not installed
+- **Fix**: Make sure you're in the virtual environment and run:
+  ```bash
+  pip install -r requirements.txt
+  ```
 
-### Port conflicts locally
-- Change port: `uvicorn backend.main:app --port 8000`
-- Check no other service is using 7860
+**3. FAISS installation fails on Windows**
+- **Cause**: No pre-built wheel for your Python version
+- **Fix**: Use Python 3.10 or 3.12 (not 3.13)
+- **Alternative**: Install Visual Studio Build Tools
+
+**4. Port 7860 already in use**
+- **Fix**: Change the port:
+  ```bash
+  uvicorn backend.main:app --port 8000
+  ```
+
+**5. Slow first startup**
+- **Normal**: The app downloads ~90MB sentence-transformers model on first run
+- **Wait**: 1-2 minutes for model download and sample PDF generation
+
+**6. Docker build fails**
+- **Check**: Docker Desktop is running
+- **Check**: You're in the project root directory
+- **Retry**: Sometimes network issues cause timeouts, just retry
 
 ---
 
-## API Keys - Security Reminders
+## Running Tests
 
-⚠️ **Never commit API keys to git**
-- Use .env locally (already in .gitignore)
-- Use Space/Render secrets for deployment
+To verify everything works correctly:
 
-⚠️ **Rotate exposed keys immediately**
-- If keys were accidentally committed or shared
+```bash
+# Make sure you're in the virtual environment
+pytest -v
+```
 
-⚠️ **Monitor usage**
-- Google AI Studio: https://aistudio.google.com/app/apikey
-- SerpAPI: https://serpapi.com/dashboard
+Tests cover:
+- API endpoints (`/ask`, `/upload_pdf`, `/logs`)
+- Controller routing logic
+- RAG retrieval with re-ranking
 
 ---
 
-## Performance Notes
+## Security Best Practices
 
-### Free Tier Limits
-- **Google Gemini**: 15 req/min, 1.5K req/day
+⚠️ **Important Reminders:**
+
+1. **Never commit API keys to git**
+   - Use `.env` locally (already in `.gitignore`)
+   - Use platform secrets for cloud deployment
+
+2. **Rotate exposed keys immediately**
+   - If you accidentally commit a key, revoke it at:
+     - Google AI Studio: https://aistudio.google.com/app/apikey
+     - SerpAPI: https://serpapi.com/dashboard
+
+3. **Monitor API usage**
+   - Keep an eye on your quota to avoid unexpected charges
+
+---
+
+## API Limits (Free Tier)
+
+- **Google Gemini**: 15 requests/min, 1,500 requests/day
 - **SerpAPI**: 100 searches/month
-- **HF Spaces**: 2GB RAM, 16GB disk, CPU only
+- **Hugging Face Spaces**: 2GB RAM, 16GB disk, CPU only
 - **Render Free**: 512MB RAM, sleeps after 15min inactivity
 
-### Recommendations
-- For production: upgrade to paid plans
-- For demo: free tiers are sufficient
-- Consider caching frequently asked queries
+💡 **Tip**: For a demo/assessment, free tiers are more than sufficient.
 
 ---
 
-## Next Steps After Deployment
+## Next Steps
 
-1. **Test all endpoints**:
-   - Upload a PDF
-   - Ask questions about it
-   - Try Web Search and ArXiv queries
-   - Check /logs endpoint
+1. **Test all features**:
+   - Upload a PDF and ask questions
+   - Try: "Latest news on renewable energy"
+   - Try: "Recent papers on transformers"
+   - Check logs at `/logs` endpoint
 
-2. **Monitor logs**:
-   - View traces via /logs
-   - Check for errors in Space/Render logs
+2. **Customize for your use case**:
+   - Add more sample PDFs relevant to your domain
+   - Tune the retrieval parameters in `rag_pdf.py`
+   - Adjust model temperature in `controller.py`
 
-3. **Share your Space**:
-   - HF Spaces can be embedded in websites
-   - Share URL: `https://huggingface.co/spaces/YOUR_USERNAME/problem-2-multi-agentic`
+3. **Share your deployment**:
+   - If deployed to HF Spaces: share the public URL
+   - Add a badge to your README
 
-4. **Iterate**:
-   - Add more sample PDFs
-   - Tune model parameters
-   - Improve rationale descriptions
+---
+
+## Need Help?
+
+If you encounter issues:
+1. Check the **Troubleshooting** section above
+2. Review logs at http://localhost:7860/logs
+3. Verify your API keys are valid
+4. Ensure all dependencies are installed correctly
