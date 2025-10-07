@@ -61,29 +61,27 @@ When a query doesn't match any rules (e.g., "What are the latest market trends a
 #### c. Agent Interfaces
 Each agent has a simple, unified interface (`search()` or `retrieve()`) that the controller can call, making the system easy to extend with new agents in the future.
 
-## 4. Development Journey: Challenges & Solutions
+## 4. Development Journey: Key Challenges & Solutions
 
-This project was a significant learning experience. Here are some of the key challenges I encountered and how I solved them:
+### **Challenge 1: RAG Agent Prioritization**
+**Problem:** The RAG agent returned results from sample PDFs instead of recently uploaded user documents.
 
-1.  **Challenge: The RAG Agent Wasn't Smart Enough**
-    *   **Problem:** My first version of the PDF RAG agent would often get confused. When I asked it to "summarize the uploaded document," it would often return information from the *other* sample documents because of keyword overlap.
-    *   **Investigation:** I realized that a basic similarity search (like the one in FAISS) doesn't know *which* document is the most important. The query "summarize" was matching with text in my sample AI dialogs. The agent was technically "correct" from a vector math perspective, but it was delivering a poor user experience.
-    *   **Solution (My "Aha!" Moment):** I decided to add more context to the retrieval process. I modified the code to attach a `timestamp` to every document chunk when it's ingested. Now, when a user makes a query, the retrieval logic gives a "boost" to documents that were uploaded more recently. This simple change made the agent much more intuitive and immediately fixed the problem, ensuring it always focuses on the newest content.
+**Solution:** Added timestamp-based re-ranking. Documents get a "boost" score based on upload recency, ensuring user-uploaded PDFs always take priority over samples. This simple metadata addition fixed the retrieval accuracy issue immediately.
 
-2.  **Challenge: The Controller Was Too Simplistic**
-    *   **Problem:** My initial controller was just a set of `if/elif/else` statements. It could route "latest news" to the Web Search agent, but it completely failed with more complex queries like, *"What are the latest market trends and academic papers on perovskite solar cells?"* It would just default to one agent, ignoring half of the user's request.
-    *   **Investigation:** I knew I needed a more dynamic way to handle complex queries. A simple rules-based engine wasn't enough. The problem required understanding user intent and potentially calling multiple agents at once.
-    *   **Solution:** This is where I decided to integrate a Large Language Model. I designed a "hybrid" controller. It uses the fast, simple rules for obvious queries, but for anything complex, it passes the query to a Gemini model. I created a specific prompt that asks the LLM to act as a "router," and the LLM returns a JSON object specifying which agents to call (e.g., `["Web Search", "ArXiv"]`). This hybrid approach gives the system both speed and intelligence.
+### **Challenge 2: Limited Controller Intelligence**
+**Problem:** Initial rule-based controller failed on complex queries requiring multiple agents (e.g., "latest trends AND recent papers").
 
-3.  **Challenge: Making the System Reliable**
-    *   **Problem:** During testing, my app would crash completely if my internet connection was weak or if an external API (like SerpAPI or ArXiv) was temporarily down. An `HTTPError` in one of the agents would bring down the entire server.
-    *   **Investigation:** I realized a production-ready application can't be that fragile. I needed to build in resilience so that one failing component doesn't break the whole system.
-    *   **Solution:** I wrapped every external API call in a `try...except` block. Instead of letting the app crash, it now catches the error, logs it for debugging, and allows the Controller Agent to proceed with information from the *other*, successful agents. For example, if the ArXiv search fails but the Web Search succeeds, the user still gets a useful answer. This makes the system much more robust and reliable.
+**Solution:** Designed a hybrid controller: rules handle simple queries (fast path), Gemini LLM handles complex ones (smart path). The LLM returns JSON specifying which agents to call, enabling multi-agent queries while keeping common requests efficient.
 
-4.  **Challenge: Dependency and Environment Issues**
-    *   **Problem:** When I first tried to install the project dependencies using `pip install -r requirements.txt`, I ran into several cryptic errors on my Windows machine, especially for `faiss-cpu` and `PyMuPDF`.
-    *   **Investigation:** After some research, I found that these errors were due to missing pre-built "wheels" for my specific combination of Python version and operating system. The packages were trying to compile from source, which requires a complex set of build tools that I didn't have installed.
-    *   **Solution:** Rather than installing heavy build tools, I decided to take a more pragmatic approach. I carefully researched which package versions had official pre-built wheels for Windows and pinned them in my `requirements.txt` file (e.g., `faiss-cpu==1.12.0`). I also decided to standardize on Python 3.12, as it had the best compatibility. This ensures that any other developer can set up and run my project in minutes, without facing the same frustrating compilation issues.
+### **Challenge 3: System Fragility**
+**Problem:** The app crashed when external APIs (SerpAPI, ArXiv) were down or rate-limited.
+
+**Solution:** Wrapped all external calls in `try...except` blocks with graceful fallbacks. If one agent fails, the system continues with others and logs errors for debugging. This makes the application production-ready and resilient.
+
+### **Challenge 4: Windows Dependency Issues**
+**Problem:** `faiss-cpu` and `PyMuPDF` failed to install on Windows due to missing pre-built wheels.
+
+**Solution:** Pinned specific package versions with known Windows wheels in `requirements.txt` (e.g., `faiss-cpu==1.12.0`). Standardized on Python 3.12 for best compatibility. This ensures quick, reliable setup for any developer.
 
 ## 5. Design Trade-offs & Decisions
 
