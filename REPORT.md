@@ -6,15 +6,15 @@ For: Solar Industries India Limited - AIML Internship Assessment
 
 ---
 
-## Overview
+## Executive Summary
 
-This project implements a multi-agent AI system that routes user queries to specialized agents. The system uses a FastAPI backend with a simple frontend, and includes three main agents: a PDF RAG agent for document Q&A, a web search agent for real-time information, and an ArXiv agent for academic papers.
+This project implements a multi-agent AI system that routes user queries to specialized agents based on query characteristics. The system consists of a FastAPI backend, a minimal frontend interface, and three specialized agents: a PDF RAG agent for document retrieval, a web search agent for real-time information, and an ArXiv agent for academic papers.
 
-The interesting part here is the controller logic. Instead of relying entirely on an LLM to decide everything, I built a hybrid system. Simple queries get routed through fast keyword-based rules, while complex ones escalate to a Gemini model. This keeps costs down and response times snappy. The whole thing logs extensively (to traces.json), handles errors gracefully, and includes sample data specific to Solar Industries to show domain relevance.
+The primary contribution of this work is the hybrid controller architecture. Rather than relying exclusively on LLM-based routing, the controller employs rule-based keyword matching for common query patterns and escalates to a Gemini language model for complex, ambiguous requests. This approach balances response latency with routing accuracy while minimizing API costs. The system includes comprehensive logging (traces.json), robust error handling, and domain-specific sample data for Solar Industries.
 
-## Architecture
+## System Architecture
 
-The design is straightforward. A frontend sends requests to the FastAPI backend, which immediately delegates to the Controller Agent. From there, the controller decides which agents to call (sometimes more than one), collects their responses, and synthesizes a final answer.
+The architecture follows a modular design pattern. User requests from the frontend are handled by the FastAPI backend, which delegates query processing to the Controller Agent. The controller analyzes the query, determines which agents should be invoked (potentially multiple), collects their responses, and synthesizes a unified answer.
 
 ```mermaid
 flowchart TD
@@ -45,72 +45,72 @@ flowchart TD
     style ARX fill:#FDEDEC
 ```
 
-## Controller logic
+## Controller Logic
 
-The ControllerAgent makes routing decisions. For straightforward queries, it uses keyword matching—if someone asks about "latest news" it hits the Web Search agent; "research paper" triggers ArXiv; "summarize pdf" goes to RAG. Dead simple, runs in milliseconds.
+The ControllerAgent implements a two-tier routing strategy. For straightforward queries, keyword-based pattern matching provides immediate routing decisions. Queries containing "latest news" invoke the Web Search agent; "research paper" triggers the ArXiv agent; "summarize pdf" directs to the RAG agent. This rule-based path executes in milliseconds.
 
-Complex queries are different. Say someone asks "What are the latest market trends and academic papers on perovskite solar cells?" No single keyword matches. Here the controller hands the query to Gemini with a prompt that asks it to act as a router. The LLM returns JSON like `{"agents": ["Web Search", "ArXiv"]}` and the controller calls both. It's a nice balance—you get speed for routine stuff and intelligence for ambiguous requests.
+Complex queries require more sophisticated handling. Consider the query "What are the latest market trends and academic papers on perovskite solar cells?" which involves multiple information sources. In such cases, the controller escalates to the Gemini language model with a prompt instructing it to act as a query router. The LLM returns a JSON specification such as `{"agents": ["Web Search", "ArXiv"]}`, and the controller invokes both agents accordingly. This hybrid approach provides computational efficiency for routine requests while maintaining intelligent routing for ambiguous cases.
 
-Each agent exposes either a `search()` or `retrieve()` method. This makes adding new agents pretty easy down the road.
+All agents expose a uniform interface (`search()` or `retrieve()` methods), facilitating future extensibility.
 
-## What went wrong (and how I fixed it)
+## Development Challenges
 
-The RAG agent kept pulling results from the sample PDFs instead of what users just uploaded. Turns out vector similarity alone doesn't care about recency. I fixed this by adding timestamps to every document chunk and boosting scores for newer uploads. The retrieval got way better after that.
+The initial RAG implementation prioritized sample PDFs over recently uploaded user documents due to relying solely on vector similarity scoring. Since cosine similarity does not account for temporal relevance, the system frequently returned outdated content. This was addressed by augmenting document metadata with upload timestamps and implementing a re-ranking algorithm that boosts scores for recent uploads. The modification significantly improved retrieval accuracy.
 
-My first controller was just a bunch of if-statements. Worked fine for "latest news" but totally choked on queries like "latest trends AND recent papers." That's when I added the LLM fallback. Now simple stuff stays fast, complex stuff gets routed intelligently.
+The first controller iteration used only rule-based routing, which proved inadequate for multi-faceted queries such as "latest trends AND recent papers." Such queries require invoking multiple agents, which the simple if-statement logic could not handle. Integrating LLM-assisted routing resolved this limitation while maintaining fast execution for simple queries.
 
-Then there was the fragility problem. Early on, if SerpAPI was down or rate-limited, the whole app would crash with an HTTPError. I wrapped everything in try-except blocks and added fallbacks. If one agent fails, the others keep running and we log the issue. Much more robust.
+Early versions exhibited poor fault tolerance. When external APIs (SerpAPI, ArXiv) experienced downtime or rate limiting, the application would terminate with unhandled HTTPError exceptions. Wrapping all external calls in try-except blocks with appropriate fallback mechanisms (DuckDuckGo for search, mock responses for LLM failures) substantially improved system resilience.
 
-Oh, and dependency hell on Windows. faiss-cpu and PyMuPDF refused to install without Visual Studio build tools. I spent way too long on this before just pinning specific versions that had pre-built wheels (faiss-cpu==1.12.0, for example). Python 3.12 seems to have the best wheel support right now.
+Dependency management on Windows presented complications. Both faiss-cpu and PyMuPDF failed to install without Visual Studio build tools due to the absence of pre-compiled binary wheels. After investigating available package versions, specific versions with confirmed Windows wheel support (e.g., faiss-cpu==1.12.0) were pinned in requirements.txt. Python 3.12 demonstrated the best compatibility across dependencies.
 
-## Design choices
+## Design Decisions
 
-I went with FAISS over Chroma for the vector store. FAISS is fast, lightweight, and doesn't need much setup. Chroma has persistence out of the box, which is nice, but felt like overkill for an assessment project.
+FAISS was selected over Chroma for vector storage based on its performance characteristics and minimal configuration requirements. While Chroma offers built-in persistence capabilities, FAISS provides faster query execution and a smaller dependency footprint, which better suited the project's assessment scope.
 
-For embeddings I picked all-MiniLM-L6-v2 from sentence-transformers. It's only about 90MB and performs well enough for this use case. Deployment stays simple.
+The all-MiniLM-L6-v2 model from sentence-transformers was chosen for text embeddings. With a compact size of approximately 90MB and strong performance on semantic similarity tasks, it offers an appropriate balance between model quality and deployment simplicity.
 
-PyMuPDF handles PDF text extraction. It's faster than a lot of the other options (like pdfminer) and generally more accurate too.
+PyMuPDF was selected for PDF text extraction due to its superior speed and accuracy compared to alternatives such as pdfminer.
 
-## Sample data
+## Sample Data
 
-The system generates 5 PDFs on first startup if they don't exist. Three cover general AI topics (RAG basics, multi-agent systems, controller design), and two are specific to Solar Industries: one about the company's products and technology focus, another about AI/ML applications in explosives manufacturing. This way the demo shows both general capability and domain relevance.
+The system programmatically generates five sample PDFs on initial startup. Three documents cover general AI concepts (RAG fundamentals, multi-agent architectures, controller design patterns), while two provide Solar Industries-specific context: company operations and technology focus, and AI/ML applications in explosives manufacturing. This dual approach demonstrates both the system's general capabilities and its relevance to Solar Industries' domain.
 
-## API usage
+## API Usage
 
-Gemini's free tier gives you 15 requests per minute and 1 million tokens per minute, which is plenty for a demo. The hybrid routing helps here—most queries hit the rule-based path and never touch the LLM. When Gemini does error out, the system logs it and returns a mock response so nothing breaks.
+The Google Gemini API free tier provides 15 requests per minute and 1 million tokens per minute, which is sufficient for demonstration purposes. The hybrid routing architecture minimizes LLM invocations since most queries are resolved via rule-based matching. Gemini API errors are logged and trigger fallback to mock responses to maintain application stability.
 
-SerpAPI has a 100 searches/month free tier. If that runs out (or if there's no key at all), the system falls back to DuckDuckGo's instant answer API, which doesn't need authentication.
+SerpAPI's free tier allows 100 searches per month. When this quota is exceeded or when no API key is configured, the system automatically falls back to DuckDuckGo's instant answer API, which requires no authentication.
 
-## Security and privacy
+## Security and Privacy
 
-Uploaded PDFs get validated (type and size check, max 10MB) and stored temporarily in uploads/. After the text gets extracted and chunked into the vector store, the file's deleted. There's also a cleanup task that runs on startup and removes anything older than 24 hours.
+Uploaded PDFs undergo validation for file type and size (maximum 10MB) before being stored temporarily in the uploads/ directory. Following text extraction and chunking into the vector store, the original files are deleted. An automated cleanup task executes on application startup to remove any files older than 24 hours.
 
-API keys come from a .env file, which is gitignored. No hard-coding secrets anywhere in the codebase.
+API credentials are loaded from a .env file, which is excluded from version control via .gitignore. No sensitive information is hard-coded in the codebase.
 
 ## Deployment
 
-There's a Dockerfile for containerization and a DEPLOYMENT.md with instructions for Hugging Face Spaces or Render. All config (API keys, model selection) goes through environment variables, which are documented in .env.example. The README has local setup instructions that should get you running in a few minutes.
+The project includes a Dockerfile for containerization and comprehensive deployment documentation (DEPLOYMENT.md) covering Hugging Face Spaces and Render platforms. All configuration parameters, including API keys and model selection, are managed through environment variables as documented in .env.example. Local setup instructions are provided in the README.
 
 ## Limitations
 
-The FAISS index rebuilds on every restart, so uploaded PDFs don't persist. Sample files regenerate automatically but custom uploads are lost. At some point this needs disk persistence or a database-backed store.
+The FAISS vector index is rebuilt on each application restart, resulting in the loss of uploaded PDFs. While sample files regenerate automatically, user-uploaded documents do not persist. This limitation could be addressed through disk-based persistence or a database-backed vector store.
 
-There's no user authentication. Everyone shares the same vector store. Fine for a demo, not acceptable for production. You'd want OAuth or API keys and isolated stores per user.
+The system lacks user authentication and session management. All users share a single vector store, which is acceptable for demonstration purposes but unsuitable for production deployment. A production system would require OAuth or API key authentication along with isolated vector stores per user.
 
-RAG only grabs the top 5 chunks per query. Long documents might not be fully represented, though the recursive chunking with overlap helps.
+RAG retrieval is limited to the top 5 chunks per query, which may inadequately represent very long documents. The recursive chunking strategy with overlap partially mitigates this constraint.
 
-The system depends on external APIs (Gemini, SerpAPI, ArXiv). If they're down or rate-limited, we fall back gracefully but service degrades. DuckDuckGo covers search when SerpAPI fails; the LLM returns mock responses with error logs when Gemini's unavailable.
+The system depends on external APIs (Google Gemini, SerpAPI, ArXiv). Service degradation occurs when these APIs experience downtime or rate limiting, though graceful fallbacks are implemented (DuckDuckGo for search, mock responses for LLM failures with comprehensive error logging).
 
-Performance-wise, first startup takes 1-2 minutes because sentence-transformers downloads a 90MB model. Could pre-cache this in the Docker image. Also, everything runs on CPU, so embeddings are slower than they'd be on GPU (200-500ms per query typically). Agents get called sequentially too, not in parallel. Using asyncio.gather() would speed up multi-agent requests by maybe 30-50%.
+Initial startup latency ranges from 1-2 minutes due to sentence-transformers model download (approximately 90MB). This could be optimized by pre-caching the model in the Docker image. Additionally, embedding generation runs on CPU rather than GPU, resulting in typical query times of 200-500ms. Agent invocations occur sequentially rather than in parallel; implementing asyncio.gather() would likely reduce multi-agent request latency by 30-50%.
 
-Security gaps: no rate limiting, so the API can be abused. PDFs get deleted after ingestion but stay in the vector store with no way to remove them except restarting the server.
+Security gaps include the absence of rate limiting, creating vulnerability to API abuse. While uploaded PDFs are deleted post-ingestion, their content remains in the vector store with no deletion mechanism short of server restart.
 
-Scope limitations are pretty clear. Text-only PDFs—scanned documents or image-heavy files won't work well without OCR. English-only too; Hindi or other Indian languages would need a multilingual embedding model. And there's no multi-modal support (images, audio, video). Gemini Vision could handle images eventually.
+Scope limitations include text-only PDF support (scanned or image-heavy documents require OCR), English-only language optimization (Hindi or other Indian languages would require multilingual embedding models), and lack of multi-modal capabilities (images, audio, video would require additional models such as Gemini Vision).
 
-## What's next
+## Future Enhancements
 
-For production at Solar Industries, a few enhancements would make sense. Response streaming would improve UX—seeing tokens appear one by one feels way more responsive than waiting for the full answer. Cost tracking is important too; without token usage monitoring you're flying blind on LLM spend.
+For production deployment at Solar Industries, several enhancements would provide substantial value. Response streaming would improve user experience by providing incremental feedback rather than requiring users to wait for complete answers. Token usage and cost tracking would enable LLM expenditure monitoring and budget management.
 
-Fine-tuning the embedding model on Solar's internal docs would boost RAG accuracy for domain jargon (think "energetic materials," "detonator assembly"). Session management would enable multi-turn conversations without re-uploading documents every time.
+Fine-tuning the embedding model on Solar Industries' internal technical documentation would improve RAG accuracy for domain-specific terminology (e.g., "energetic materials," "detonator assembly"). Session management would enable multi-turn conversational interactions without requiring document re-upload between queries.
 
-Vector store persistence and parallel agent execution are both straightforward wins. Persistence means uploads survive restarts; parallelization cuts multi-agent latency by 30-50% using asyncio.gather().
+Vector store persistence and parallel agent execution represent implementation opportunities. Persistence would preserve uploaded documents across server restarts, while parallelization using asyncio.gather() would reduce multi-agent request latency by an estimated 30-50%.
