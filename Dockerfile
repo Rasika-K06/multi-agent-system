@@ -4,7 +4,8 @@ FROM python:3.10-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    PORT=7860
+    PORT=7860 \
+    HF_HOME=/app/.cache
 
 # System deps (if needed, keep minimal)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -19,7 +20,7 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 COPY . /app
 
 # Create and set permissions for runtime directories that the app needs to write to
-RUN mkdir -p /app/logs /app/uploads /app/sample_pdfs && chown -R 1000:1000 /app/logs /app/uploads /app/sample_pdfs
+RUN mkdir -p /app/logs /app/uploads /app/sample_pdfs /app/.cache && chown -R 1000:1000 /app/logs /app/uploads /app/sample_pdfs /app/.cache
 
 EXPOSE 7860
 
