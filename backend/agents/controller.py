@@ -26,10 +26,13 @@ class ControllerAgent:
         agents: List[str] = []
         reasons: List[str] = []
         
-        # PDF stuff
-        if any(phrase in q for phrase in ["summarize", "summary", "uploaded", "document", "pdf"]):
+        # PDF stuff - includes company-specific queries
+        if any(phrase in q for phrase in ["summarize", "summary", "uploaded", "document", "pdf", 
+                                           "solar industries", "company", "product lines", "products",
+                                           "overview", "about solar", "explosives manufacturing",
+                                           "applications", "use cases"]):
             agents.append("PDF RAG")
-            reasons.append("The query contains keywords related to document summarization (e.g., 'summarize', 'uploaded', 'pdf'). The PDF RAG agent is specifically designed to process and extract information from uploaded documents.")
+            reasons.append("The query contains keywords related to documents or company-specific information (e.g., 'Solar Industries', 'products', 'company overview'). The PDF RAG agent retrieves information from uploaded and sample documents including company profiles and domain-specific content.")
         
         # academic papers
         if any(phrase in q for phrase in ["recent papers", "arxiv", "paper", "research", "study", "publication"]):
@@ -37,9 +40,10 @@ class ControllerAgent:
             reasons.append("The query contains terms indicating interest in academic research (e.g., 'papers', 'arxiv', 'research'). The ArXiv agent retrieves and summarizes recent scholarly publications.")
         
         # news/web search
-        if any(phrase in q for phrase in ["latest news", "recent developments", "news", "current", "today", "happening"]):
+        if any(phrase in q for phrase in ["latest news", "recent developments", "news", "current", "today", "happening",
+                                           "latest", "trends", "technology trends", "industry"]):
             agents.append("Web Search")
-            reasons.append("The query contains phrases requesting real-time or current information (e.g., 'latest news', 'recent developments'). The Web Search agent retrieves the most up-to-date data from the web.")
+            reasons.append("The query contains phrases requesting real-time or current information (e.g., 'latest', 'trends', 'recent developments'). The Web Search agent retrieves the most up-to-date data from the web.")
         
         # remove dupes but keep order
         dedup = []
@@ -49,9 +53,15 @@ class ControllerAgent:
                 dedup.append(a)
                 dedup_reasons.append(reasons[i])
         
-        # combine all the reasons
+        # combine all the reasons with clear separation for multi-agent scenarios
         if dedup_reasons:
-            rationale = " ".join(dedup_reasons)
+            if len(dedup_reasons) == 1:
+                rationale = dedup_reasons[0]
+            else:
+                # Multiple agents - format with numbered list
+                agent_explanations = [f"({i+1}) {dedup[i]}: {dedup_reasons[i]}" 
+                                     for i in range(len(dedup))]
+                rationale = "Multiple agents selected. " + " ".join(agent_explanations)
         else:
             rationale = ""
         

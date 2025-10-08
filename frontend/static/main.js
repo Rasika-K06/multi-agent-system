@@ -27,7 +27,12 @@ askBtn.addEventListener('click', async () => {
     if (!res.ok) throw new Error('Request failed');
     const data = await res.json();
     answerDiv.textContent = data.answer || '(no answer)';
-    metaDiv.textContent = `Agents used: ${data.agents_used?.join(', ') || 'N/A'}\nRationale: ${data.rationale || ''}`;
+    
+    // Format metadata with better structure
+    const agentsText = `Agents used: ${data.agents_used?.join(', ') || 'N/A'}`;
+    const rationaleText = `Rationale: ${data.rationale || 'No rationale provided'}`;
+    metaDiv.textContent = `${agentsText}\n\n${rationaleText}`;
+    
     askStatus.textContent = '';
   } catch (e) {
     askStatus.textContent = 'Error: ' + e.message;
