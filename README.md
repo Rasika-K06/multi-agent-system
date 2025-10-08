@@ -29,7 +29,7 @@ A FastAPI-based multi-agent system that routes user queries to specialized agent
 
 Demo (Hugging Face Spaces)
 
-* Placeholder: [https://huggingface.co/spaces/your-username/multi-agent-system](https://huggingface.co/spaces/your-username/multi-agent-system)
+🔗 https://huggingface.co/spaces/Ras06/solar-aiml-demo
 
 ---
 
